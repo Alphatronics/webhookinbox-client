@@ -5,8 +5,15 @@ Author: Geoffrey Van Landeghem (geoffrey.vl@gmail.com)
 from webhookinbox import BaseWebhookParser, WebhookInbox
 import base64
 import json
+from dbservice import DbService
+
+DBFILE='requestdb.db'
 
 class MbedWebhookParser(BaseWebhookParser):
+
+    def __init__(self):
+        self.db = DbService(DBFILE)
+        self.db.connect()
 
     def parse(self, method, js=''):
         print('[DEBUG]  mbed: {0} {1}'.format(method, js))
@@ -17,9 +24,14 @@ class MbedWebhookParser(BaseWebhookParser):
             for asyncresponse in jsondata['async-responses']:
                 decoded = base64.b64decode(asyncresponse["payload"])
                 print('[INFO] Decoded: {0}'.format(decoded))
+                self.db.updateNewRequest(asyncresponse["id"], decoded, asyncresponse["status"])
         elif jsondata.has_key('registrations'):
             for registration in jsondata['registrations']:
-                print('[INFO] Endpoint online: {0} ({1})'.format(registration["ep"], registration["original-ep"]))
+                print('[INFO] Endpoint online: {0}'.format(registration["ep"]))
+        elif jsondata.has_key('notifications'):
+            for notification in jsondata['notifications']:
+                decoded = base64.b64decode(notification["payload"])
+                print('[INFO] Notification from {0} {1}: {2}'.format(notification["ep"], notification["path"], decoded))
 
 
 if __name__ == '__main__':
@@ -28,4 +40,4 @@ if __name__ == '__main__':
     inbox = WebhookInbox(MbedWebhookParser())
     inbox.setupBin()
     print('[INFO] Bin {0} Ready!'.format(inbox.binID))
-    inbox.getItems()
+    inbox.getItems() #loop!

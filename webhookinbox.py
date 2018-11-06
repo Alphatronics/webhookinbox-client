@@ -58,6 +58,7 @@ class WebhookInbox:
                 sys.exit()
             print('[DEBUG]  => response OK [code: {0}]'.format(response.status_code))
             self.binID = response.json()["id"]
+            self.lastCursor=0
             print('[INFO] new bin created! id={0}'.format(self.binID))
             fileOnDisk=open(BINIDFILE,"w")
             fileOnDisk.write(self.binID)
@@ -92,6 +93,8 @@ class WebhookInbox:
     def updateLastCursor(self, last_cursor):
         if self.lastCursor == last_cursor:
             return
+        if last_cursor == '':
+            last_cursor=0
         print('[DEBUG] updating last_cursor from {0} to {1}'.format(self.lastCursor, last_cursor))
         self.lastCursor = last_cursor
         fileOnDisk=open(BINIDFILE,"w")

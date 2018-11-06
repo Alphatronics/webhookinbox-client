@@ -1,3 +1,5 @@
 binid.dat
 *.pyc
 mbedapi.key
+/ACL
+/ACL/*

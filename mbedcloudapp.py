@@ -7,9 +7,12 @@ import requests
 import sys
 import json
 import time
+import os
+from dbservice import DbService
 
 BASEURL='https://api.us-east-1.mbedcloud.com/v2'
 APIKEYFILE='mbedapi.key'
+DEFAULTTIMEOUT=30
 
 class MbedEndpoint:
     def __init__(self, name, type, status):
@@ -80,11 +83,15 @@ class MbedCloudApiClient:
         response = requests.post(url, headers=self.headers, timeout=3)
         if response.status_code != 202:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
         else:
             responseID = response.json()["async-response-id"]
             print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
 
     def getSerialNumber(self, deviceId):
+        if deviceId == '':
+            return ''
         url='{0}/endpoints/{1}/3/0/2'.format(BASEURL, deviceId)
         print('[DEBUG] GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
@@ -97,6 +104,8 @@ class MbedCloudApiClient:
             return responseID
 
     def getFirmwareVersion(self, deviceId):
+        if deviceId == '':
+            return ''
         url='{0}/endpoints/{1}/3/0/3'.format(BASEURL, deviceId)
         print('[DEBUG] GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
@@ -108,26 +117,65 @@ class MbedCloudApiClient:
             print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
             return responseID
 
+    def postLoadACL(self, deviceId, data):
+        if deviceId == '':
+            return ''
+        url='{0}/endpoints/{1}/31006/0/27025'.format(BASEURL, deviceId)
+        print('[DEBUG] POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3, data=data)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
+    def postReboot(self, deviceId):
+        if deviceId == '':
+            return
+        url='{0}/endpoints/{1}/3/0/4'.format(BASEURL, deviceId)
+        print('[DEBUG] POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
+DBFILE='requestdb.db'
+BINIDFILE='binid.dat'
+WEBHOOKURL='http://api.webhookinbox.com'
+
 class MbedCloudApiClientApp:
 
     def __init__(self):
         self.client = MbedCloudApiClient()
         self.endpoints = []
         self.selectedDeviceId=''
+        self.db = DbService(DBFILE)
 
     def setup(self):
-        notificationCb = self.client.getNotificationCallback()
+        self.db.connect()
+
+        #look for callback url on disk
+        notificationCb = ''
+        fileOnDisk=open(BINIDFILE,"a+")
+        binID=fileOnDisk.readline().rstrip()
+        fileOnDisk.close()
+        if binID:
+            print('[INFO] found webhook on disk: id={0}, checking state...'.format(binID))
+            notificationCb = self.client.getNotificationCallback()
+            url='{0}/i/{1}/in/'.format(WEBHOOKURL, binID)
+            if binID not in notificationCb:
+                print('[INFO] webhook mismatch detected, setting new: {0} (old: {1})'.format(url, notificationCb))
+                notificationCb = self.client.putNotificationCallback(url)
         if notificationCb == '':
-            print('[INFO] No notifications webhook configured')
-            userInput = raw_input('# Do you want to configure one? (Y/n): ')
-            if userInput=='n' or userInput=='N':
-                return
-            userInput = raw_input('# Enter webhook url: ')
-            notificationCb = self.client.putNotificationCallback(userInput)
-            if notificationCb == '':
-                print('[ERROR] Notifications webhook not configured')
-                return
-        print('[INFO] Notifications webhook: {0}'.format(notificationCb))
+            print('[ERROR] Notifications webhook not configured')
+        else:
+            print('[INFO] Notifications webhook: {0}'.format(notificationCb))
 
     def selectDevice(self):
         if self.selectedDeviceId != '':
@@ -154,9 +202,99 @@ class MbedCloudApiClientApp:
         else:
             print('[ERROR] No device selected...')
 
-    def runDevice_Menu(self):
+    def waitForResponse(self, responseId):
+        ctr=0
+        while True:
+            resp = self.db.getRequest(responseId)
+            if resp != None and resp[3] != None:
+                print('[INFO] {0}: {1} [STATUS={2}]'.format(resp[1], resp[2], resp[3]))
+                return resp[2]
+            if ctr >= DEFAULTTIMEOUT:
+                print('[ERROR] {0}: TIMEOUT!'.format(resp[1]))
+                return None
+            time.sleep(1)
+            ctr=ctr+1
+
+    def getSerialNumber(self):
+        cmd="GET Serial Number"
+        print('[INFO] {0} ...'.format(cmd))
+        responseId = self.client.getSerialNumber(self.selectedDeviceId)
+        if responseId == '':
+            return
+        ret = self.db.insertNewRequest(responseId, cmd)
+        if ret < 1:
+            return
+        self.waitForResponse(responseId)
+        
+    def getFirmwareVersion(self):
+        cmd="GET Firmware Version"
+        print('[INFO] {0} ...'.format(cmd))
+        responseId = self.client.getFirmwareVersion(self.selectedDeviceId)
+        if responseId == '':
+            return
+        ret = self.db.insertNewRequest(responseId, cmd)
+        if ret < 1:
+            return
+        self.waitForResponse(responseId)
+
+    def openDeviceMenu(self):
         print('[INFO] 1. get Serial number')
-        print('[INFO] 1. get Firmware version')
+        print('[INFO] 2. get Firmware version')
+        print('[INFO] 3. post Reboot')
+        userInput = raw_input('# Select command (1 ... 3): ')
+        try: 
+            selectedCmd = int(userInput)
+        except ValueError:
+            selectedCmd = 0
+        if selectedCmd == 0:
+            print('[ERROR] Illegal choice')
+        elif selectedCmd == 1:
+            self.getSerialNumber()
+        elif selectedCmd == 2:
+            self.getFirmwareVersion()
+        elif selectedCmd == 3:
+            print('[INFO] Reboot device ...')
+            self.client.postReboot(self.selectedDeviceId)
+
+    def loadAcl(self):
+        print('[INFO] Load ACL ...')
+        print('[DEBUG] reading ACL directory...')
+        filenames=os.listdir("./ACL")
+        
+        ctr=1
+        for filename in filenames:
+            filename='./ACL/'+filename
+            data=''
+            try:
+                fileOnDisk=open(filename,"rb")
+                data=fileOnDisk.read()
+                fileOnDisk.close()
+            except Exception:
+                print('[ERROR] loading ACL from file {0}...'.format(filename))
+                return
+
+            print('[INFO] ACL packet {0}/{1}, bytes: {2}, filename: {3}'.format(ctr, len(filenames), len(data), filename))
+
+            cmd="POST Load ACL {0}/{1}".format(ctr, len(filenames))
+            print('[INFO] {0} ...'.format(cmd))
+
+            responseId = self.client.postLoadACL(self.selectedDeviceId, data)
+            if responseId == '':
+                return
+            dbRet = self.db.insertNewRequest(responseId, cmd)
+            if dbRet < 1:
+                return
+            ret = self.waitForResponse(responseId)
+            if ret == None or ret != 'OK':
+                print('[ERROR] Load ACL fault detected, sequence stopped')
+                return
+            ctr=ctr+1
+        print('[INFO] Load ACL completed!')    
+        
+
+    def openAclMenu(self):
+        print('[INFO] 1. Print ACL')
+        print('[INFO] 2. Load ACL')
         userInput = raw_input('# Select command (1 ... 2): ')
         try: 
             selectedCmd = int(userInput)
@@ -164,26 +302,12 @@ class MbedCloudApiClientApp:
             selectedCmd = 0
         if selectedCmd == 0:
             print('[ERROR] Illegal choice')
-            return
-        if selectedCmd == 1:
-            print('[INFO] Getting Serial Number ...')
-            self.client.getSerialNumber(self.selectedDeviceId)
+        elif selectedCmd == 1:
+            print('[INFO] Print ACL ...')
+            self.client.postPrintACL(self.selectedDeviceId)
         elif selectedCmd == 2:
-            print('[INFO] Getting Firmware Version ...')
-            self.client.getFirmwareVersion(self.selectedDeviceId)
+            self.loadAcl()
 
-    def runACL_Menu(self):
-        print('[INFO] 1. Print ACL')
-        userInput = raw_input('# Select command (1 ... 1): ')
-        try: 
-            selectedCmd = int(userInput)
-        except ValueError:
-            selectedCmd = 0
-        if selectedCmd == 0:
-            print('[ERROR] Illegal choice')
-            return
-        print('[INFO] Print ACL ...')
-        self.client.postPrintACL(self.selectedDeviceId)
 
     def run(self):
         if self.selectedDeviceId == '':
@@ -197,11 +321,10 @@ class MbedCloudApiClientApp:
             selectedCmd = 0
         if selectedCmd == 0:
             print('[ERROR] Illegal choice')
-            return
-        if selectedCmd == 1:
-            self.runDevice_Menu()
+        elif selectedCmd == 1:
+            self.openDeviceMenu()
         elif selectedCmd == 2:
-            self.runACL_Menu()
+            self.openAclMenu()
         
 if __name__ == '__main__':
 
