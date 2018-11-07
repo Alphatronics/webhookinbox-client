@@ -12,7 +12,7 @@ from dbservice import DbService
 
 BASEURL='https://api.us-east-1.mbedcloud.com/v2'
 APIKEYFILE='mbedapi.key'
-DEFAULTTIMEOUT=30
+DEFAULTTIMEOUT=120
 
 class MbedEndpoint:
     def __init__(self, name, type, status):
@@ -285,7 +285,7 @@ class MbedCloudApiClientApp:
             if dbRet < 1:
                 return
             ret = self.waitForResponse(responseId)
-            if ret == None or ret != 'OK':
+            if ret == None or ret != '1':
                 print('[ERROR] Load ACL fault detected, sequence stopped')
                 return
             ctr=ctr+1

@@ -19,7 +19,7 @@ class WebhookInbox:
 
     def __init__(self, customParser):
         self.binID=''
-        self.lastCursor=0
+        self.lastCursor='0'
         self.parser=customParser
 
     #get a working bin:
@@ -58,7 +58,7 @@ class WebhookInbox:
                 sys.exit()
             print('[DEBUG]  => response OK [code: {0}]'.format(response.status_code))
             self.binID = response.json()["id"]
-            self.lastCursor=0
+            self.lastCursor='0'
             print('[INFO] new bin created! id={0}'.format(self.binID))
             fileOnDisk=open(BINIDFILE,"w")
             fileOnDisk.write(self.binID)
