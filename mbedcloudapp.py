@@ -40,7 +40,7 @@ class MbedCloudApiClient:
 
     def getNotificationCallback(self):
         url='{0}/notification/callback'.format(BASEURL)
-        print('[DEBUG] GET {0}'.format(url))
+        print('[DEBUG] Request : GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
         if response.status_code != 200:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
@@ -53,7 +53,7 @@ class MbedCloudApiClient:
         url='{0}/notification/callback'.format(BASEURL)
         payload={"url":callbackUrl}
         data = json.dumps(payload)
-        print('[DEBUG] PUT {0} {1}'.format(url, data))
+        print('[DEBUG] Request : PUT {0} {1}'.format(url, data))
         response = requests.put(url, headers=self.headers, timeout=3, data=data)
         if response.status_code != 204:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
@@ -65,7 +65,7 @@ class MbedCloudApiClient:
     def getAllEndpoints(self):
         eps = []
         url='{0}/endpoints'.format(BASEURL)
-        print('[DEBUG] GET {0}'.format(url))
+        print('[DEBUG] Request : GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
         if response.status_code != 200:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
@@ -79,7 +79,7 @@ class MbedCloudApiClient:
         if deviceId == '':
             return
         url='{0}/endpoints/{1}/31006/0/27027'.format(BASEURL, deviceId)
-        print('[DEBUG] POST {0}'.format(url))
+        print('[DEBUG] Request : POST {0}'.format(url))
         response = requests.post(url, headers=self.headers, timeout=3)
         if response.status_code != 202:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
@@ -93,7 +93,7 @@ class MbedCloudApiClient:
         if deviceId == '':
             return ''
         url='{0}/endpoints/{1}/3/0/2'.format(BASEURL, deviceId)
-        print('[DEBUG] GET {0}'.format(url))
+        print('[DEBUG] Request : GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
         if response.status_code != 202:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
@@ -107,7 +107,7 @@ class MbedCloudApiClient:
         if deviceId == '':
             return ''
         url='{0}/endpoints/{1}/3/0/3'.format(BASEURL, deviceId)
-        print('[DEBUG] GET {0}'.format(url))
+        print('[DEBUG] Request : GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
         if response.status_code != 202:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
@@ -121,7 +121,21 @@ class MbedCloudApiClient:
         if deviceId == '':
             return ''
         url='{0}/endpoints/{1}/31006/0/27025'.format(BASEURL, deviceId)
-        print('[DEBUG] POST {0}'.format(url))
+        print('[DEBUG] Request : POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3, data=data)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
+    def postSyncACL(self, deviceId, data):
+        if deviceId == '':
+            return ''
+        url='{0}/endpoints/{1}/31006/0/27020'.format(BASEURL, deviceId)
+        print('[DEBUG] Request : POST {0}'.format(url))
         response = requests.post(url, headers=self.headers, timeout=3, data=data)
         if response.status_code != 202:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
@@ -135,7 +149,7 @@ class MbedCloudApiClient:
         if deviceId == '':
             return
         url='{0}/endpoints/{1}/3/0/4'.format(BASEURL, deviceId)
-        print('[DEBUG] POST {0}'.format(url))
+        print('[DEBUG] Request : POST {0}'.format(url))
         response = requests.post(url, headers=self.headers, timeout=3)
         if response.status_code != 202:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
@@ -203,6 +217,7 @@ class MbedCloudApiClientApp:
             print('[ERROR] No device selected...')
 
     def waitForResponse(self, responseId):
+        print('[DEBUG] waiting for async response...')  
         ctr=0
         while True:
             resp = self.db.getRequest(responseId)
@@ -246,7 +261,7 @@ class MbedCloudApiClientApp:
             selectedCmd = int(userInput)
         except ValueError:
             selectedCmd = 0
-        if selectedCmd == 0:
+        if selectedCmd < 1 or selectedCmd > 3:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
             self.getSerialNumber()
@@ -290,23 +305,61 @@ class MbedCloudApiClientApp:
                 return
             ctr=ctr+1
         print('[INFO] Load ACL completed!')    
+
+    def syncAcl(self):
+        print('[INFO] Sync ACL ...')
+        print('[DEBUG] reading ACL directory...')
+        filenames=os.listdir("./ACL")
+        
+        ctr=1
+        for filename in filenames:
+            filename='./ACL/'+filename
+            data=''
+            try:
+                fileOnDisk=open(filename,"rb")
+                data=fileOnDisk.read()
+                fileOnDisk.close()
+            except Exception:
+                print('[ERROR] loading ACL from file {0}...'.format(filename))
+                return
+
+            print('[INFO] ACL packet {0}/{1}, bytes: {2}, filename: {3}'.format(ctr, len(filenames), len(data), filename))
+
+            cmd="POST Sync ACL {0}/{1}".format(ctr, len(filenames))
+            print('[INFO] {0} ...'.format(cmd))
+
+            responseId = self.client.postSyncACL(self.selectedDeviceId, data)
+            if responseId == '':
+                return
+            dbRet = self.db.insertNewRequest(responseId, cmd)
+            if dbRet < 1:
+                return
+            ret = self.waitForResponse(responseId)
+            if ret == None or ret != '1':
+                print('[ERROR] Sync ACL fault detected, sequence stopped')
+                return
+            ctr=ctr+1
+        print('[INFO] Sync ACL completed!')   
         
 
     def openAclMenu(self):
         print('[INFO] 1. Print ACL')
         print('[INFO] 2. Load ACL')
-        userInput = raw_input('# Select command (1 ... 2): ')
+        print('[INFO] 3. Sync ACL')
+        userInput = raw_input('# Select command (1 ... 3): ')
         try: 
             selectedCmd = int(userInput)
         except ValueError:
             selectedCmd = 0
-        if selectedCmd == 0:
+        if selectedCmd < 1 or selectedCmd > 3:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
             print('[INFO] Print ACL ...')
             self.client.postPrintACL(self.selectedDeviceId)
         elif selectedCmd == 2:
             self.loadAcl()
+        elif selectedCmd == 3:
+            self.syncAcl()
 
 
     def run(self):
@@ -319,7 +372,7 @@ class MbedCloudApiClientApp:
             selectedCmd = int(userInput)
         except ValueError:
             selectedCmd = 0
-        if selectedCmd == 0:
+        if selectedCmd < 1 or selectedCmd > 2:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
             self.openDeviceMenu()
