@@ -117,6 +117,34 @@ class MbedCloudApiClient:
             print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
             return responseID
 
+    def postReboot(self, deviceId):
+        if deviceId == '':
+            return
+        url='{0}/endpoints/{1}/3/0/4'.format(BASEURL, deviceId)
+        print('[DEBUG] Request : POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
+    def postStandbyCommand(self, deviceId):
+        if deviceId == '':
+            return ''
+        url='{0}/endpoints/{1}/31000/0/27010'.format(BASEURL, deviceId)
+        print('[DEBUG] Request : POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
     def postLoadACL(self, deviceId, data):
         if deviceId == '':
             return ''
@@ -137,20 +165,6 @@ class MbedCloudApiClient:
         url='{0}/endpoints/{1}/31006/0/27020'.format(BASEURL, deviceId)
         print('[DEBUG] Request : POST {0}'.format(url))
         response = requests.post(url, headers=self.headers, timeout=3, data=data)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
-
-    def postReboot(self, deviceId):
-        if deviceId == '':
-            return
-        url='{0}/endpoints/{1}/3/0/4'.format(BASEURL, deviceId)
-        print('[DEBUG] Request : POST {0}'.format(url))
-        response = requests.post(url, headers=self.headers, timeout=3)
         if response.status_code != 202:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
             return ''
@@ -251,17 +265,18 @@ class MbedCloudApiClientApp:
         if ret < 1:
             return
         self.waitForResponse(responseId)
-
+        
     def openDeviceMenu(self):
         print('[INFO] 1. get Serial number')
         print('[INFO] 2. get Firmware version')
         print('[INFO] 3. post Reboot')
-        userInput = raw_input('# Select command (1 ... 3): ')
+        print('[INFO] 4. post Standby')
+        userInput = raw_input('# Select command (1 ... 4): ')
         try: 
             selectedCmd = int(userInput)
         except ValueError:
             selectedCmd = 0
-        if selectedCmd < 1 or selectedCmd > 3:
+        if selectedCmd < 1 or selectedCmd > 4:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
             self.getSerialNumber()
@@ -270,7 +285,10 @@ class MbedCloudApiClientApp:
         elif selectedCmd == 3:
             print('[INFO] Reboot device ...')
             self.client.postReboot(self.selectedDeviceId)
-
+        elif selectedCmd == 4:
+            print('[INFO] Standby device ...')
+            self.client.postStandbyCommand(self.selectedDeviceId)
+        
     def loadAcl(self):
         print('[INFO] Load ACL ...')
         print('[DEBUG] reading ACL directory...')
