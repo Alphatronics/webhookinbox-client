@@ -3,4 +3,6 @@ binid.dat
 mbedapi.key
 /ACL
 /ACL/*
+/Screens
+/Screens/*
 requestdb.db

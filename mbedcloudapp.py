@@ -173,6 +173,20 @@ class MbedCloudApiClient:
             print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
             return responseID
 
+    def postScreen(self, deviceId, screenid, data):
+        if deviceId == '':
+            return ''
+        url='{0}/endpoints/{1}/31008/{2}/27000'.format(BASEURL, deviceId, screenid)
+        print('[DEBUG] Request : POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3, data=data)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
 DBFILE='requestdb.db'
 BINIDFILE='binid.dat'
 WEBHOOKURL='http://api.webhookinbox.com'
@@ -357,7 +371,45 @@ class MbedCloudApiClientApp:
                 print('[ERROR] Sync ACL fault detected, sequence stopped')
                 return
             ctr=ctr+1
-        print('[INFO] Sync ACL completed!')   
+        print('[INFO] Sync ACL completed!')  
+
+    def updateScreens(self):
+        print('[INFO] updating Screens ...')
+        print('[DEBUG] reading Screens directory...')
+        filenames=os.listdir("./Screens")
+        
+        ctr=1
+        for filename in filenames:
+            filenameRelative='./Screens/'+filename
+            data=''
+            try:
+                fileOnDisk=open(filenameRelative,"rb")
+                data=fileOnDisk.read()
+                fileOnDisk.close()
+            except Exception:
+                print('[ERROR] loading Screen from file {0}...'.format(filenameRelative))
+                return
+
+            bitmapfIDStr = filename.split('.')[0]
+            bitmapID = int(bitmapfIDStr)
+
+            print('[INFO] Screen {0} (nr {1} of total {2}), bytes: {3}, filename: {4}'.format(bitmapID, ctr, len(filenames), len(data), filenameRelative))
+
+            cmd="POST Update Screen {0}/{1}".format(ctr, len(filenames))
+            print('[INFO] {0} ...'.format(cmd))
+
+            responseId = self.client.postScreen(self.selectedDeviceId, bitmapID, data)
+            if responseId == '':
+                return
+            dbRet = self.db.insertNewRequest(responseId, cmd)
+            if dbRet < 1:
+                return
+            ret = self.waitForResponse(responseId)
+            if ret == None or ret != '1':
+                print('[ERROR] Update screen detected, sequence stopped')
+                return
+            ctr=ctr+1
+        print('[INFO] Update screens completed!')   
         
 
     def openAclMenu(self):
@@ -379,23 +431,39 @@ class MbedCloudApiClientApp:
         elif selectedCmd == 3:
             self.syncAcl()
 
+    def openApplicationMenu(self):
+        
+        print('[INFO] 1. Update screens')
+        userInput = raw_input('# Select command (1 ... 1): ')
+        try: 
+            selectedCmd = int(userInput)
+        except ValueError:
+            selectedCmd = 0
+        if selectedCmd < 1 or selectedCmd > 1:
+            print('[ERROR] Illegal choice')
+        elif selectedCmd == 1:
+            self.updateScreens()
+
 
     def run(self):
         if self.selectedDeviceId == '':
             return
         print('[INFO] 1. Device Info')
         print('[INFO] 2. ACL')
-        userInput = raw_input('# Select command (1 ... 2): ')
+        print('[INFO] 3. Screens')
+        userInput = raw_input('# Select command (1 ... 3): ')
         try: 
             selectedCmd = int(userInput)
         except ValueError:
             selectedCmd = 0
-        if selectedCmd < 1 or selectedCmd > 2:
+        if selectedCmd < 1 or selectedCmd > 3:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
             self.openDeviceMenu()
         elif selectedCmd == 2:
             self.openAclMenu()
+        elif selectedCmd == 3:
+            self.openApplicationMenu()
         
 if __name__ == '__main__':
 
