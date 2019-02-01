@@ -145,6 +145,20 @@ class MbedCloudApiClient:
             print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
             return responseID
 
+    def postFactoryResetCommand(self, deviceId):
+        if deviceId == '':
+            return ''
+        url='{0}/endpoints/{1}/3/0/5'.format(BASEURL, deviceId)
+        print('[DEBUG] Request : POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
     def postLoadACL(self, deviceId, data):
         if deviceId == '':
             return ''
@@ -299,12 +313,13 @@ class MbedCloudApiClientApp:
         print('[INFO] 2. get Firmware version')
         print('[INFO] 3. post Reboot')
         print('[INFO] 4. post Standby')
-        userInput = raw_input('# Select command (1 ... 4): ')
+        print('[INFO] 5. post Factory reset')
+        userInput = raw_input('# Select command (1 ... 5): ')
         try: 
             selectedCmd = int(userInput)
         except ValueError:
             selectedCmd = 0
-        if selectedCmd < 1 or selectedCmd > 4:
+        if selectedCmd < 1 or selectedCmd > 5:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
             self.getSerialNumber()
@@ -316,6 +331,9 @@ class MbedCloudApiClientApp:
         elif selectedCmd == 4:
             print('[INFO] Standby device ...')
             self.client.postStandbyCommand(self.selectedDeviceId)
+        elif selectedCmd == 5:
+            print('[INFO] Factory reset ...')
+            self.client.postFactoryResetCommand(self.selectedDeviceId)
         
     def loadAcl(self):
         print('[INFO] Load ACL ...')
