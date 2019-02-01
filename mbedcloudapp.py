@@ -187,6 +187,20 @@ class MbedCloudApiClient:
             print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
             return responseID
 
+    def postIcon(self, deviceId, iconid, data):
+        if deviceId == '':
+            return ''
+        url='{0}/endpoints/{1}/31008/{2}/27001'.format(BASEURL, deviceId, iconid)
+        print('[DEBUG] Request : POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3, data=data)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
 DBFILE='requestdb.db'
 BINIDFILE='binid.dat'
 WEBHOOKURL='http://api.webhookinbox.com'
@@ -409,7 +423,45 @@ class MbedCloudApiClientApp:
                 print('[ERROR] Update screen detected, sequence stopped')
                 return
             ctr=ctr+1
-        print('[INFO] Update screens completed!')   
+        print('[INFO] Update screens completed!')  
+
+    def updateIcons(self):
+        print('[INFO] updating Icons ...')
+        print('[DEBUG] reading Icons directory...')
+        filenames=os.listdir("./Icons")
+        
+        ctr=1
+        for filename in filenames:
+            filenameRelative='./Icons/'+filename
+            data=''
+            try:
+                fileOnDisk=open(filenameRelative,"rb")
+                data=fileOnDisk.read()
+                fileOnDisk.close()
+            except Exception:
+                print('[ERROR] loading Icon from file {0}...'.format(filenameRelative))
+                return
+
+            bitmapfIDStr = filename.split('.')[0]
+            bitmapID = int(bitmapfIDStr)
+
+            print('[INFO] Icon {0} (nr {1} of total {2}), bytes: {3}, filename: {4}'.format(bitmapID, ctr, len(filenames), len(data), filenameRelative))
+
+            cmd="POST Update Icon {0}/{1}".format(ctr, len(filenames))
+            print('[INFO] {0} ...'.format(cmd))
+
+            responseId = self.client.postIcon(self.selectedDeviceId, bitmapID, data)
+            if responseId == '':
+                return
+            dbRet = self.db.insertNewRequest(responseId, cmd)
+            if dbRet < 1:
+                return
+            ret = self.waitForResponse(responseId)
+            if ret == None or ret != '1':
+                print('[ERROR] Update Icon detected, sequence stopped')
+                return
+            ctr=ctr+1
+        print('[INFO] Update Icons completed!')   
         
 
     def openAclMenu(self):
@@ -434,15 +486,18 @@ class MbedCloudApiClientApp:
     def openApplicationMenu(self):
         
         print('[INFO] 1. Update screens')
-        userInput = raw_input('# Select command (1 ... 1): ')
+        print('[INFO] 2. Update icons')
+        userInput = raw_input('# Select command (1 ... 2): ')
         try: 
             selectedCmd = int(userInput)
         except ValueError:
             selectedCmd = 0
-        if selectedCmd < 1 or selectedCmd > 1:
+        if selectedCmd < 1 or selectedCmd > 2:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
             self.updateScreens()
+        elif selectedCmd == 2:
+            self.updateIcons()
 
 
     def run(self):
