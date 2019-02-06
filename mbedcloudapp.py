@@ -75,12 +75,40 @@ class MbedCloudApiClient:
                 eps.append(MbedEndpoint(ep["name"], ep["type"], ep["status"]))
         return eps
 
-    def postPrintACL(self, deviceId):
+    def __getEndpointData(self, deviceId, uri):
+        if deviceId == '':
+            return ''
+        url='{0}/endpoints/{1}{2}'.format(BASEURL, deviceId, uri)
+        print('[DEBUG] Request : GET {0}'.format(url))
+        response = requests.get(url, headers=self.headers, timeout=3)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
+    def __postEndpointCommand(self, deviceId, uri):
         if deviceId == '':
             return
-        url='{0}/endpoints/{1}/31006/0/27027'.format(BASEURL, deviceId)
+        url='{0}/endpoints/{1}{2}'.format(BASEURL, deviceId, uri)
         print('[DEBUG] Request : POST {0}'.format(url))
         response = requests.post(url, headers=self.headers, timeout=3)
+        if response.status_code != 202:
+            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
+            return ''
+        else:
+            responseID = response.json()["async-response-id"]
+            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
+            return responseID
+
+    def __postEndpointData(self, deviceId, uri, data):
+        if deviceId == '':
+            return ''
+        url='{0}/endpoints/{1}{2}'.format(BASEURL, deviceId, uri)
+        print('[DEBUG] Request : POST {0}'.format(url))
+        response = requests.post(url, headers=self.headers, timeout=3, data=data)
         if response.status_code != 202:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
             return ''
@@ -90,130 +118,54 @@ class MbedCloudApiClient:
             return responseID
 
     def getSerialNumber(self, deviceId):
-        if deviceId == '':
-            return ''
-        url='{0}/endpoints/{1}/3/0/2'.format(BASEURL, deviceId)
-        print('[DEBUG] Request : GET {0}'.format(url))
-        response = requests.get(url, headers=self.headers, timeout=3)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__getEndpointData(deviceId, '/3/0/2')
+
+    def getModelNumber(self, deviceId):
+        return self.__getEndpointData(deviceId, '/3/0/1')
 
     def getFirmwareVersion(self, deviceId):
-        if deviceId == '':
-            return ''
-        url='{0}/endpoints/{1}/3/0/3'.format(BASEURL, deviceId)
-        print('[DEBUG] Request : GET {0}'.format(url))
-        response = requests.get(url, headers=self.headers, timeout=3)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__getEndpointData(deviceId, '/3/0/3')
+
+    def getTime(self, deviceId):
+        return self.__getEndpointData(deviceId, '/3/0/13')
+
+    def getDeviceType(self, deviceId):
+        return self.__getEndpointData(deviceId, '/3/0/17')
+
+    def getHardwareVersion(self, deviceId):
+        return self.__getEndpointData(deviceId, '/3/0/18')
 
     def postReboot(self, deviceId):
-        if deviceId == '':
-            return
-        url='{0}/endpoints/{1}/3/0/4'.format(BASEURL, deviceId)
-        print('[DEBUG] Request : POST {0}'.format(url))
-        response = requests.post(url, headers=self.headers, timeout=3)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__postEndpointCommand(deviceId, '/3/0/4')
 
     def postStandbyCommand(self, deviceId):
-        if deviceId == '':
-            return ''
-        url='{0}/endpoints/{1}/31000/0/27010'.format(BASEURL, deviceId)
-        print('[DEBUG] Request : POST {0}'.format(url))
-        response = requests.post(url, headers=self.headers, timeout=3)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__postEndpointCommand(deviceId, '/31000/0/27010')
 
     def postFactoryResetCommand(self, deviceId):
-        if deviceId == '':
-            return ''
-        url='{0}/endpoints/{1}/3/0/5'.format(BASEURL, deviceId)
-        print('[DEBUG] Request : POST {0}'.format(url))
-        response = requests.post(url, headers=self.headers, timeout=3)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__postEndpointCommand(deviceId, '/3/0/5')
 
     def postLoadACL(self, deviceId, data):
-        if deviceId == '':
-            return ''
-        url='{0}/endpoints/{1}/31006/0/27025'.format(BASEURL, deviceId)
-        print('[DEBUG] Request : POST {0}'.format(url))
-        response = requests.post(url, headers=self.headers, timeout=3, data=data)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__postEndpointData(deviceId, '/31006/0/27025', data)
 
     def postSyncACL(self, deviceId, data):
-        if deviceId == '':
-            return ''
-        url='{0}/endpoints/{1}/31006/0/27020'.format(BASEURL, deviceId)
-        print('[DEBUG] Request : POST {0}'.format(url))
-        response = requests.post(url, headers=self.headers, timeout=3, data=data)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__postEndpointData(deviceId, '/31006/0/27020', data)
+
+    def postPrintACL(self, deviceId):
+        return self.__postEndpointCommand(deviceId, '/31006/0/27027')
+
+    def postPrintRecordsFilenames(self, deviceId):
+        return self.__postEndpointCommand(deviceId, '/31007/0/27028')
 
     def postScreen(self, deviceId, screenid, data):
-        if deviceId == '':
-            return ''
-        url='{0}/endpoints/{1}/31008/{2}/27000'.format(BASEURL, deviceId, screenid)
-        print('[DEBUG] Request : POST {0}'.format(url))
-        response = requests.post(url, headers=self.headers, timeout=3, data=data)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__postEndpointData(deviceId, '/31008/{0}/27000'.format(screenid), data)
 
     def postIcon(self, deviceId, iconid, data):
-        if deviceId == '':
-            return ''
-        url='{0}/endpoints/{1}/31008/{2}/27001'.format(BASEURL, deviceId, iconid)
-        print('[DEBUG] Request : POST {0}'.format(url))
-        response = requests.post(url, headers=self.headers, timeout=3, data=data)
-        if response.status_code != 202:
-            print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
-            return ''
-        else:
-            responseID = response.json()["async-response-id"]
-            print('[DEBUG]  => response OK [code: {0}, ID:{1}]'.format(response.status_code, responseID))
-            return responseID
+        return self.__postEndpointData(deviceId, '/31008/{0}/27001'.format(iconid), data)
+
+
+
+
+
 
 DBFILE='requestdb.db'
 BINIDFILE='binid.dat'
@@ -296,6 +248,17 @@ class MbedCloudApiClientApp:
         if ret < 1:
             return
         self.waitForResponse(responseId)
+
+    def getModelNumber(self):
+        cmd="GET Model Number"
+        print('[INFO] {0} ...'.format(cmd))
+        responseId = self.client.getModelNumber(self.selectedDeviceId)
+        if responseId == '':
+            return
+        ret = self.db.insertNewRequest(responseId, cmd)
+        if ret < 1:
+            return
+        self.waitForResponse(responseId)
         
     def getFirmwareVersion(self):
         cmd="GET Firmware Version"
@@ -307,33 +270,42 @@ class MbedCloudApiClientApp:
         if ret < 1:
             return
         self.waitForResponse(responseId)
-        
-    def openDeviceMenu(self):
-        print('[INFO] 1. get Serial number')
-        print('[INFO] 2. get Firmware version')
-        print('[INFO] 3. post Reboot')
-        print('[INFO] 4. post Standby')
-        print('[INFO] 5. post Factory reset')
-        userInput = raw_input('# Select command (1 ... 5): ')
-        try: 
-            selectedCmd = int(userInput)
-        except ValueError:
-            selectedCmd = 0
-        if selectedCmd < 1 or selectedCmd > 5:
-            print('[ERROR] Illegal choice')
-        elif selectedCmd == 1:
-            self.getSerialNumber()
-        elif selectedCmd == 2:
-            self.getFirmwareVersion()
-        elif selectedCmd == 3:
-            print('[INFO] Reboot device ...')
-            self.client.postReboot(self.selectedDeviceId)
-        elif selectedCmd == 4:
-            print('[INFO] Standby device ...')
-            self.client.postStandbyCommand(self.selectedDeviceId)
-        elif selectedCmd == 5:
-            print('[INFO] Factory reset ...')
-            self.client.postFactoryResetCommand(self.selectedDeviceId)
+
+    def getTime(self):
+        cmd="GET Time"
+        print('[INFO] {0} ...'.format(cmd))
+        responseId = self.client.getTime(self.selectedDeviceId)
+        if responseId == '':
+            return
+        ret = self.db.insertNewRequest(responseId, cmd)
+        if ret < 1:
+            return
+        self.waitForResponse(responseId)
+
+    def getDeviceType(self):
+        cmd="GET Device type"
+        print('[INFO] {0} ...'.format(cmd))
+        responseId = self.client.getDeviceType(self.selectedDeviceId)
+        if responseId == '':
+            return
+        ret = self.db.insertNewRequest(responseId, cmd)
+        if ret < 1:
+            return
+        self.waitForResponse(responseId)
+
+    def getHardwareVersion(self):
+        cmd="GET Hardware version"
+        print('[INFO] {0} ...'.format(cmd))
+        responseId = self.client.getHardwareVersion(self.selectedDeviceId)
+        if responseId == '':
+            return
+        ret = self.db.insertNewRequest(responseId, cmd)
+        if ret < 1:
+            return
+        self.waitForResponse(responseId)
+
+    def uploadRecords(self):
+        print('[INFO] Upload records ...')
         
     def loadAcl(self):
         print('[INFO] Load ACL ...')
@@ -480,12 +452,54 @@ class MbedCloudApiClientApp:
                 return
             ctr=ctr+1
         print('[INFO] Update Icons completed!')   
-        
+
+
+
+
+############################ MENUS ############################
+    def openDeviceMenu(self):
+        print('[SELECT] 1. get Serial number')
+        print('[SELECT] 2. get Model number')
+        print('[SELECT] 3. get Firmware version')
+        print('[SELECT] 4. post Reboot')
+        print('[SELECT] 5. post Standby')
+        print('[SELECT] 6. post Factory reset')
+        print('[SELECT] 7. get time')
+        print('[SELECT] 8. get device type')
+        print('[SELECT] 9. get hardware version')
+        userInput = raw_input('# Select command (1 ... 9): ')
+        try: 
+            selectedCmd = int(userInput)
+        except ValueError:
+            selectedCmd = 0
+        if selectedCmd < 1 or selectedCmd > 9:
+            print('[ERROR] Illegal choice')
+        elif selectedCmd == 1:
+            self.getSerialNumber()
+        elif selectedCmd == 2:
+            self.getModelNumber()
+        elif selectedCmd == 3:
+            self.getFirmwareVersion()
+        elif selectedCmd == 4:
+            print('[INFO] Reboot device ...')
+            self.client.postReboot(self.selectedDeviceId)
+        elif selectedCmd == 5:
+            print('[INFO] Standby device ...')
+            self.client.postStandbyCommand(self.selectedDeviceId)
+        elif selectedCmd == 6:
+            print('[INFO] Factory reset ...')
+            self.client.postFactoryResetCommand(self.selectedDeviceId) 
+        elif selectedCmd == 7:
+            self.getTime()
+        elif selectedCmd == 8:
+            self.getDeviceType()
+        elif selectedCmd == 9:
+            self.getHardwareVersion()
 
     def openAclMenu(self):
-        print('[INFO] 1. Print ACL')
-        print('[INFO] 2. Load ACL')
-        print('[INFO] 3. Sync ACL')
+        print('[SELECT] 1. Print ACL')
+        print('[SELECT] 2. Load ACL')
+        print('[SELECT] 3. Sync ACL')
         userInput = raw_input('# Select command (1 ... 3): ')
         try: 
             selectedCmd = int(userInput)
@@ -501,10 +515,26 @@ class MbedCloudApiClientApp:
         elif selectedCmd == 3:
             self.syncAcl()
 
-    def openApplicationMenu(self):
-        
-        print('[INFO] 1. Update screens')
-        print('[INFO] 2. Update icons')
+
+    def openRecordsMenu(self):
+        print('[SELECT] 1. Upload records')
+        print('[SELECT] 2. Print records filenames')
+        userInput = raw_input('# Select command (1 ... 2): ')
+        try: 
+            selectedCmd = int(userInput)
+        except ValueError:
+            selectedCmd = 0
+        if selectedCmd < 1 or selectedCmd > 2:
+            print('[ERROR] Illegal choice')
+        elif selectedCmd == 1:
+            print('[ERROR] Illegal choice')
+            self.uploadRecords()
+        elif selectedCmd == 2:
+            self.client.postPrintRecordsFilenames(self.selectedDeviceId)
+
+    def openScreensMenu(self):
+        print('[SELECT] 1. Update screens')
+        print('[SELECT] 2. Update icons')
         userInput = raw_input('# Select command (1 ... 2): ')
         try: 
             selectedCmd = int(userInput)
@@ -521,10 +551,11 @@ class MbedCloudApiClientApp:
     def run(self):
         if self.selectedDeviceId == '':
             return
-        print('[INFO] 1. Device Info')
-        print('[INFO] 2. ACL')
-        print('[INFO] 3. Screens')
-        userInput = raw_input('# Select command (1 ... 3): ')
+        print('[SELECT] 1. Device Info')
+        print('[SELECT] 2. ACL')
+        print('[SELECT] 3. Records')
+        print('[SELECT] 4. Screens')
+        userInput = raw_input('# Select command (1 ... 4): ')
         try: 
             selectedCmd = int(userInput)
         except ValueError:
@@ -536,7 +567,11 @@ class MbedCloudApiClientApp:
         elif selectedCmd == 2:
             self.openAclMenu()
         elif selectedCmd == 3:
-            self.openApplicationMenu()
+            self.openRecordsMenu()
+        elif selectedCmd == 4:
+            self.openScreensMenu()
+
+############################ MAIN ############################
         
 if __name__ == '__main__':
 

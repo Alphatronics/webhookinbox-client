@@ -7,4 +7,6 @@ mbedapi.key
 /Screens/*
 /Icons
 /Icons/*
+/Records
+/Records/*
 requestdb.db
