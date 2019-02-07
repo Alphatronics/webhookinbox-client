@@ -153,6 +153,12 @@ class MbedCloudApiClient:
     def postPrintACL(self, deviceId):
         return self.__postEndpointCommand(deviceId, '/31006/0/27027')
 
+    def getUploadRecordsData(self, deviceId):
+        return self.__getEndpointData(deviceId, '/31007/0/27022')
+
+    def postRequestUploadRecords(self, deviceId, timestamp):
+        return self.__postEndpointData(deviceId, '/31007/0/27023', timestamp)
+
     def postPrintRecordsFilenames(self, deviceId):
         return self.__postEndpointCommand(deviceId, '/31007/0/27028')
 
@@ -171,7 +177,7 @@ DBFILE='requestdb.db'
 BINIDFILE='binid.dat'
 WEBHOOKURL='http://api.webhookinbox.com'
 
-class MbedCloudApiClientApp:
+class PelionConsole:
 
     def __init__(self):
         self.client = MbedCloudApiClient()
@@ -200,10 +206,6 @@ class MbedCloudApiClientApp:
             print('[INFO] Notifications webhook: {0}'.format(notificationCb))
 
     def selectDevice(self):
-        if self.selectedDeviceId != '':
-            userInput = raw_input('# continue using current device? (Y/n): ')  # Python 2
-            if userInput!='n' and userInput!='N':
-                return
         self.endpoints = self.client.getAllEndpoints()
         ctr=1
         for ep in self.endpoints:
@@ -305,7 +307,104 @@ class MbedCloudApiClientApp:
         self.waitForResponse(responseId)
 
     def uploadRecords(self):
+        self.__eraseDirectory('./Records')
+
         print('[INFO] Upload records ...')
+
+        # we start with requesting epoch 0 (1/1/1970 0h00m00s)
+        timestamp = '0000'
+        
+        while True:
+            epoch = timestamp[:-3]
+            datetimeStr = time.strftime("%Y-%m-%d", time.gmtime(long(epoch)))
+            print('[INFO] Request upload records from ts {0}, date={1}'.format(timestamp, datetimeStr))
+            cmd="POST Requerst Upload Records ts={0}".format(timestamp)
+            print('[INFO] {0} ...'.format(cmd))
+            responseId = self.client.postRequestUploadRecords(self.selectedDeviceId, timestamp)
+            if responseId == '':
+                return
+            dbRet = self.db.insertNewRequest(responseId, cmd)
+            if dbRet < 1:
+                return
+            ret = self.waitForResponse(responseId)
+            if ret == None or ret != 'OK':
+                print('[ERROR] Request Upload Records fault detected, sequence stopped')
+                return
+
+            # get record data
+            cmd="GET record data".format()
+            print('[INFO] {0} ...'.format(cmd))
+            responseId = self.client.getUploadRecordsData(self.selectedDeviceId)
+            if responseId == '':
+                return
+            dbRet = self.db.insertNewRequest(responseId, cmd)
+            if dbRet < 1:
+                return
+            ret = self.waitForResponse(responseId)
+            if ret == None or ret == '' or len(ret)<2:
+                print('[ERROR] Get Record Data fault detected, sequence stopped')
+                return
+
+            if len(ret)>=15:
+                print('[INFO] received records from ts {0}, date={1}'.format(epoch, datetimeStr)) 
+
+                # save to disk using timestamp as filename
+                filename='./Records/RECORD_'+epoch+'.db'
+                print('[DEBUG] storing records in file {0}'.format(filename))
+                try:
+                    fileOnDisk=open(filename,"a")
+                    fileOnDisk.write(ret[2:])
+                    fileOnDisk.close()
+                    print('[DEBUG] record data stored')  
+                except Exception:
+                    print('[ERROR] writing record data to file {0}...'.format(filename))
+                    return
+
+            # check if we need request more records
+            isLastPacket = bool(ord(ret[1]))
+            if isLastPacket == True:
+                break
+
+            print('[DEBUG] Scanning next timestamp...')  
+            # scan records and look for last timestamp
+            nextTs=''
+            offsetFromEndOfFile=100
+            while True:
+                offs=len(ret) - offsetFromEndOfFile
+                if offs < 2: # make sure we don't rewind past start-of-data
+                    offs=2
+                    offsetFromEndOfFile = offsetFromEndOfFile - (len(ret) - offsetFromEndOfFile - 2)
+                end = offs + 13
+                if end >= len(ret): # reached end of data
+                    break
+                if end-offs != 13: # did my calculus fail somehow?
+                    break
+
+                nextTs = ret[offs:end]
+                if ';' not in nextTs: # no ; => we found a 13char timestamp? let's try to parse it...
+                    try:
+                        long(nextTs)
+                        timestamp = nextTs
+                    except Exception:
+                        pass  # Pretend nothing happened.
+                offsetFromEndOfFile = offsetFromEndOfFile-1
+
+            if timestamp == None or timestamp == '':
+                print('[ERROR] Could not find last record in record data...') 
+                return
+            
+            print('[INFO] Found timestamp {0}, requesting next record data...'.format(timestamp))  
+
+        print('[INFO] Upload records completed!') 
+
+
+    def __eraseDirectory(self, dir):
+        print('[INFO] erasing directory: {0}'.format(dir))
+        filenames=os.listdir(dir)
+        for filename in filenames:
+            userInput = raw_input('# Remove {0} ? (y/N):'.format(filename))
+            if userInput=='y' or userInput=='Y':
+                os.remove(dir + '/' + filename)
         
     def loadAcl(self):
         print('[INFO] Load ACL ...')
@@ -325,10 +424,8 @@ class MbedCloudApiClientApp:
                 return
 
             print('[INFO] ACL packet {0}/{1}, bytes: {2}, filename: {3}'.format(ctr, len(filenames), len(data), filename))
-
             cmd="POST Load ACL {0}/{1}".format(ctr, len(filenames))
             print('[INFO] {0} ...'.format(cmd))
-
             responseId = self.client.postLoadACL(self.selectedDeviceId, data)
             if responseId == '':
                 return
@@ -360,10 +457,8 @@ class MbedCloudApiClientApp:
                 return
 
             print('[INFO] ACL packet {0}/{1}, bytes: {2}, filename: {3}'.format(ctr, len(filenames), len(data), filename))
-
             cmd="POST Sync ACL {0}/{1}".format(ctr, len(filenames))
             print('[INFO] {0} ...'.format(cmd))
-
             responseId = self.client.postSyncACL(self.selectedDeviceId, data)
             if responseId == '':
                 return
@@ -398,10 +493,8 @@ class MbedCloudApiClientApp:
             bitmapID = int(bitmapfIDStr)
 
             print('[INFO] Screen {0} (nr {1} of total {2}), bytes: {3}, filename: {4}'.format(bitmapID, ctr, len(filenames), len(data), filenameRelative))
-
             cmd="POST Update Screen {0}/{1}".format(ctr, len(filenames))
             print('[INFO] {0} ...'.format(cmd))
-
             responseId = self.client.postScreen(self.selectedDeviceId, bitmapID, data)
             if responseId == '':
                 return
@@ -436,10 +529,8 @@ class MbedCloudApiClientApp:
             bitmapID = int(bitmapfIDStr)
 
             print('[INFO] Icon {0} (nr {1} of total {2}), bytes: {3}, filename: {4}'.format(bitmapID, ctr, len(filenames), len(data), filenameRelative))
-
             cmd="POST Update Icon {0}/{1}".format(ctr, len(filenames))
             print('[INFO] {0} ...'.format(cmd))
-
             responseId = self.client.postIcon(self.selectedDeviceId, bitmapID, data)
             if responseId == '':
                 return
@@ -457,7 +548,7 @@ class MbedCloudApiClientApp:
 
 
 ############################ MENUS ############################
-    def openDeviceMenu(self):
+    def showDeviceMenu(self):
         print('[SELECT] 1. get Serial number')
         print('[SELECT] 2. get Model number')
         print('[SELECT] 3. get Firmware version')
@@ -496,7 +587,7 @@ class MbedCloudApiClientApp:
         elif selectedCmd == 9:
             self.getHardwareVersion()
 
-    def openAclMenu(self):
+    def showAclMenu(self):
         print('[SELECT] 1. Print ACL')
         print('[SELECT] 2. Load ACL')
         print('[SELECT] 3. Sync ACL')
@@ -516,7 +607,7 @@ class MbedCloudApiClientApp:
             self.syncAcl()
 
 
-    def openRecordsMenu(self):
+    def showRecordsMenu(self):
         print('[SELECT] 1. Upload records')
         print('[SELECT] 2. Print records filenames')
         userInput = raw_input('# Select command (1 ... 2): ')
@@ -527,12 +618,11 @@ class MbedCloudApiClientApp:
         if selectedCmd < 1 or selectedCmd > 2:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
-            print('[ERROR] Illegal choice')
             self.uploadRecords()
         elif selectedCmd == 2:
             self.client.postPrintRecordsFilenames(self.selectedDeviceId)
 
-    def openScreensMenu(self):
+    def showScreensMenu(self):
         print('[SELECT] 1. Update screens')
         print('[SELECT] 2. Update icons')
         userInput = raw_input('# Select command (1 ... 2): ')
@@ -548,39 +638,60 @@ class MbedCloudApiClientApp:
             self.updateIcons()
 
 
-    def run(self):
+    def showDeviceManagementMenu(self):
+        self.selectDevice()
         if self.selectedDeviceId == '':
             return
-        print('[SELECT] 1. Device Info')
-        print('[SELECT] 2. ACL')
-        print('[SELECT] 3. Records')
-        print('[SELECT] 4. Screens')
-        userInput = raw_input('# Select command (1 ... 4): ')
+        while True:
+            print('[SELECT] 1. Device Info')
+            print('[SELECT] 2. ACL')
+            print('[SELECT] 3. Records')
+            print('[SELECT] 4. Screens')
+            userInput = raw_input('# Select command (1 ... 4): ')
+            try: 
+                selectedCmd = int(userInput)
+            except ValueError:
+                selectedCmd = 0
+            if selectedCmd < 1 or selectedCmd > 3:
+                print('[ERROR] Illegal choice')
+            elif selectedCmd == 1:
+                self.showDeviceMenu()
+            elif selectedCmd == 2:
+                self.showAclMenu()
+            elif selectedCmd == 3:
+                self.showRecordsMenu()
+            elif selectedCmd == 4:
+                self.showScreensMenu()
+
+            userInput = raw_input('# continue using current device? (Y/n): ')  # Python 2
+            if userInput!='n' and userInput!='N':
+                continue
+            break
+
+    def showMainMenu(self):
+        print('[SELECT] 1. Device Management')
+        print('[SELECT] 2. Update firmware campaign')
+        userInput = raw_input('# Select command (1 ... 2): ')
         try: 
             selectedCmd = int(userInput)
         except ValueError:
             selectedCmd = 0
-        if selectedCmd < 1 or selectedCmd > 3:
+        if selectedCmd < 1 or selectedCmd > 2:
             print('[ERROR] Illegal choice')
         elif selectedCmd == 1:
-            self.openDeviceMenu()
+            self.showDeviceManagementMenu()
         elif selectedCmd == 2:
-            self.openAclMenu()
-        elif selectedCmd == 3:
-            self.openRecordsMenu()
-        elif selectedCmd == 4:
-            self.openScreensMenu()
+            print('[ERROR] not yet supported')
 
 ############################ MAIN ############################
         
 if __name__ == '__main__':
 
-    print('[INFO] Start Mbed Cloud Api Client App')
-    apiclient = MbedCloudApiClientApp()
+    print('[INFO] Start Mbed Cloud Api Client Console')
+    apiclient = PelionConsole()
     apiclient.setup()
     while True: 
-        apiclient.selectDevice()
-        apiclient.run()
+        apiclient.showMainMenu()
         userInput = raw_input('# Quit application? (y/N): ')
         if userInput=='y' or userInput=='Y':
             break
