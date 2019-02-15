@@ -10,7 +10,9 @@ import time
 import os
 from dbservice import DbService
 
-BASEURL='https://api.us-east-1.mbedcloud.com/v2'
+BASEURL='https://api.us-east-1.mbedcloud.com'
+CONNECTAPIURL=BASEURL+'/v2'
+UPDATEFWAPIURL=BASEURL+'/v3'
 APIKEYFILE='mbedapi.key'
 DEFAULTTIMEOUT=120
 
@@ -39,7 +41,7 @@ class MbedCloudApiClient:
         }
 
     def getNotificationCallback(self):
-        url='{0}/notification/callback'.format(BASEURL)
+        url='{0}/notification/callback'.format(CONNECTAPIURL)
         print('[DEBUG] Request : GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
         if response.status_code != 200:
@@ -50,7 +52,7 @@ class MbedCloudApiClient:
             return response.json()["url"]
 
     def putNotificationCallback(self, callbackUrl):
-        url='{0}/notification/callback'.format(BASEURL)
+        url='{0}/notification/callback'.format(CONNECTAPIURL)
         payload={"url":callbackUrl}
         data = json.dumps(payload)
         print('[DEBUG] Request : PUT {0} {1}'.format(url, data))
@@ -64,7 +66,7 @@ class MbedCloudApiClient:
 
     def getAllEndpoints(self):
         eps = []
-        url='{0}/endpoints'.format(BASEURL)
+        url='{0}/endpoints'.format(CONNECTAPIURL)
         print('[DEBUG] Request : GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
         if response.status_code != 200:
@@ -78,7 +80,7 @@ class MbedCloudApiClient:
     def __getEndpointData(self, deviceId, uri):
         if deviceId == '':
             return ''
-        url='{0}/endpoints/{1}{2}'.format(BASEURL, deviceId, uri)
+        url='{0}/endpoints/{1}{2}'.format(CONNECTAPIURL, deviceId, uri)
         print('[DEBUG] Request : GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
         if response.status_code != 202:
@@ -92,7 +94,7 @@ class MbedCloudApiClient:
     def __postEndpointCommand(self, deviceId, uri):
         if deviceId == '':
             return
-        url='{0}/endpoints/{1}{2}'.format(BASEURL, deviceId, uri)
+        url='{0}/endpoints/{1}{2}'.format(CONNECTAPIURL, deviceId, uri)
         print('[DEBUG] Request : POST {0}'.format(url))
         response = requests.post(url, headers=self.headers, timeout=3)
         if response.status_code != 202:
@@ -106,7 +108,7 @@ class MbedCloudApiClient:
     def __postEndpointData(self, deviceId, uri, data):
         if deviceId == '':
             return ''
-        url='{0}/endpoints/{1}{2}'.format(BASEURL, deviceId, uri)
+        url='{0}/endpoints/{1}{2}'.format(CONNECTAPIURL, deviceId, uri)
         print('[DEBUG] Request : POST {0}'.format(url))
         response = requests.post(url, headers=self.headers, timeout=3, data=data)
         if response.status_code != 202:
@@ -652,7 +654,7 @@ class PelionConsole:
                 selectedCmd = int(userInput)
             except ValueError:
                 selectedCmd = 0
-            if selectedCmd < 1 or selectedCmd > 3:
+            if selectedCmd < 1 or selectedCmd > 4:
                 print('[ERROR] Illegal choice')
             elif selectedCmd == 1:
                 self.showDeviceMenu()
