@@ -16,7 +16,7 @@ Press Ctrl+C to stop the client. Note that on Windows this may take a bit of tim
 
 Next start the mbed cloud application:
 
-`$ python mbedcloudapp.py`
+`$ python pelionconsole.py`
 
 
 ## More info: 
