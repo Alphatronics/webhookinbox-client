@@ -395,7 +395,8 @@ class PelionConsole:
                 print('[ERROR] Could not find last record in record data...') 
                 return
             
-            print('[INFO] Found timestamp {0}, requesting next record data...'.format(timestamp))  
+            print('[INFO] Found timestamp {0}, requesting next record data in 5s...'.format(timestamp))
+            time.sleep(5)			
 
         print('[INFO] Upload records completed!') 
 
