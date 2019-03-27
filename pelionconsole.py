@@ -333,6 +333,9 @@ class PelionConsole:
                 print('[ERROR] Request Upload Records fault detected, sequence stopped')
                 return
 
+            print('[INFO] Waiting for data to upload...')
+            time.sleep(5)	
+
             # get record data
             cmd="GET record data".format()
             print('[INFO] {0} ...'.format(cmd))
@@ -395,8 +398,7 @@ class PelionConsole:
                 print('[ERROR] Could not find last record in record data...') 
                 return
             
-            print('[INFO] Found timestamp {0}, requesting next record data in 5s...'.format(timestamp))
-            time.sleep(5)			
+            print('[INFO] Found timestamp {0}, requesting next record data...'.format(timestamp))	
 
         print('[INFO] Upload records completed!') 
 
