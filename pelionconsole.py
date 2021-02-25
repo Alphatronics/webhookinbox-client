@@ -16,13 +16,14 @@ UPDATEFWAPIURL=BASEURL+'/v3'
 APIKEYFILE='mbedapi.key'
 DEFAULTTIMEOUT=120
 
-class MbedEndpoint:
-    def __init__(self, name, type, status):
+class MbedDevice:
+    def __init__(self, id, name, type, status):
+        self.id=id
         self.name=name
         self.type=type
         self.status=status
     def __str__(self):
-        return 'name={0}, type={1}, status={2}'.format(self.name, self.type, self.status)
+        return 'id={0}, name={1}, type={2}, status={3}'.format(self.id, self.name, self.type, self.status)
 
 class MbedCloudApiClient:
 
@@ -64,18 +65,18 @@ class MbedCloudApiClient:
             print('[DEBUG]  => response OK [code: {0}]'.format(response.status_code))
             return callbackUrl
 
-    def getAllEndpoints(self):
-        eps = []
-        url='{0}/endpoints'.format(CONNECTAPIURL)
+    def getRegisteredDevices(self):
+        devices = []
+        url='{0}/v3/devices?limit=1000&filter=state%3Dregistered'.format(BASEURL)
         print('[DEBUG] Request : GET {0}'.format(url))
         response = requests.get(url, headers=self.headers, timeout=3)
         if response.status_code != 200:
             print('[DEBUG]  => response error [code: {0}, text: {1}]'.format(response.status_code, response.text))
         else:
             print('[DEBUG]  => response OK [code: {0}]'.format(response.status_code))
-            for ep in response.json():
-                eps.append(MbedEndpoint(ep["name"], ep["type"], ep["status"]))
-        return eps
+            for device in response.json()["data"]:
+                devices.append(MbedDevice(device["id"], device["name"], device["deployed_state"], device["state"]))
+        return devices
 
     def __getEndpointData(self, deviceId, uri):
         if deviceId == '':
@@ -183,7 +184,7 @@ class PelionConsole:
 
     def __init__(self):
         self.client = MbedCloudApiClient()
-        self.endpoints = []
+        self.devices = []
         self.selectedDeviceId=''
         self.db = DbService(DBFILE)
 
@@ -208,10 +209,10 @@ class PelionConsole:
             print('[INFO] Notifications webhook: {0}'.format(notificationCb))
 
     def selectDevice(self):
-        self.endpoints = self.client.getAllEndpoints()
+        self.devices = self.client.getRegisteredDevices()
         ctr=1
-        for ep in self.endpoints:
-            print('[INFO] Endpoint {0}: {1}'.format(ctr, ep))
+        for device in self.devices:
+            print('[INFO] Device {0}: {1}'.format(ctr, device))
             ctr = ctr+1
 
         if ctr == 1:
@@ -223,7 +224,7 @@ class PelionConsole:
         except ValueError:
             selectedDevice = 0
         if selectedDevice > 0 and selectedDevice < (ctr):
-            self.selectedDeviceId = self.endpoints[selectedDevice-1].name
+            self.selectedDeviceId = self.devices[selectedDevice-1].id
             print('[INFO] Selected device {0}: {1}'.format(selectedDevice, self.selectedDeviceId))
         else:
             print('[ERROR] No device selected...')
